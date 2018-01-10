@@ -1,0 +1,424 @@
+ 
+刚刚熟悉项目，接口响应有点慢 顺便查找一下问题 做个抛砖引玉
+
+这个项目接口响应慢的问题无非是网络延迟、php处理慢、后端资源（mysql等），排除系统与第三方服务件的问题。
+
+httping 两个动态接口做了一下相对对比 忽略了网络延迟和缓存的问题  ，看了代码也没有复杂的处理 那么问题一般就是mysql了 那么来验证一下
+
+[root@iZ8vb6lwwf2zunsijp58jgZ ~]# httping -c5 -g -l  "https://test.test.com/supply/list?token=Uz5Eg1HqSnKht9-NCJYrIuq9bxMdxUQLi516bLS3DhM"
+Auto enabling SSL due to https-URLPING test.test.com:443 (/supply/list?token=Uz5Eg1HqSnKht9-NCJYrIuq9bxMdxUQLi516bLS3DhM):
+connected to 111.xx.xx.xx:443 (556 bytes), seq=0 time=5504.28 ms 
+connected to 111.xx.xx.xx:443 (556 bytes), seq=1 time=5489.67 ms 
+connected to 111.xx.xx.xx:443 (556 bytes), seq=2 time=5490.48 ms 
+connected to 111.xx.xx.xx:443 (556 bytes), seq=3 time=5462.22 ms 
+connected to 111.xx.xx.xx:443 (556 bytes), seq=4 time=5567.01 ms 
+--- https://test.test.com/supply/list?token=Uz5Eg1HqSnKht9-NCJYrIuq9bxMdxUQLi516bLS3DhM ping statistics ---
+5 connects, 5 ok, 0.00% failed, time 32515ms
+round-trip min/avg/max = 5462.2/5502.7/5567.0 ms
+[root@iZ8vb6lwwf2zunsijp58jgZ ~]# httping -c5 -l -g  "https://test.test.com/supply/sort_detail?token=2nKaurpzQim06nmxbk_3XkjB77Ba3kLYiycJMRIr4co&supplement_id=3355"
+PING test.test.com:443 (/supply/sort_detail?token=2nKaurpzQim06nmxbk_3XkjB77Ba3kLYiycJMRIr4co&supplement_id=3355):
+connected to 111.xx.xx.xx:443 (556 bytes), seq=0 time=342.84 ms 
+connected to 111.xx.xx.xx:443 (556 bytes), seq=1 time=340.76 ms 
+connected to 111.xx.xx.xx:443 (556 bytes), seq=2 time=345.32 ms 
+connected to 111.xx.xx.xx:443 (556 bytes), seq=3 time=338.69 ms 
+connected to 111.xx.xx.xx:443 (556 bytes), seq=4 time=323.07 ms 
+--- https://test.test.com/supply/sort_detail?token=2nKaurpzQim06nmxbk_3XkjB77Ba3kLYiycJMRIr4co&supplement_id=3355 ping statistics ---
+
+
+临时开启general_log 捕获sql （也可以通过好多方式来捕获如 慢查询、代码输出、show processlist等等）
+
+MariaDB [(none)]> show VARIABLES like '%general_log%';;
++------------------+-----------------------------+
+| Variable_name    | Value                       |
++------------------+-----------------------------+
+| general_log      | OFF                         |
+| general_log_file | iZ8vb6lwwf2zunsijp58jgZ.log |
++------------------+-----------------------------+
+2 rows in set (0.00 sec)
+
+ERROR: No query specified
+
+MariaDB [(none)]> set GLOBAL general_log =1;
+Query OK, 0 rows affected (0.00 sec)
+
+MariaDB [(none)]> show VARIABLES like '%general_log%';;
++------------------+-----------------------------+
+| Variable_name    | Value                       |
++------------------+-----------------------------+
+| general_log      | ON                          |
+| general_log_file | iZ8vb6lwwf2zunsijp58jgZ.log |
++------------------+-----------------------------+
+2 rows in set (0.00 sec)
+
+ERROR: No query specified
+
+捕获sql
+
+ 331 Prepare   select count(*) as aggregate from `merchant` as `b` inner join `contract` as `a` on `b`.`id` = `a`.`merchant_id` inner join `supplement_note` as `c` on `b`.`id` = `c`.`merchant_id` where `c`.`status` != ?
+180105 20:34:01   331 Execute   select count(*) as aggregate from `merchant` as `b` inner join `contract` as `a` on `b`.`id` = `a`.`merchant_id` inner join `supplement_note` as `c` on `b`.`id` = `c`.`merchant_id` where `c`.`status` != 'OFF'
+                  331 Close stmt
+                  331 Prepare   select c.*, a.goods_storehouse, a.contract_no, a.`province`, a.city, b.`name` as `merchant_name`, b.position as `merchant_position` from `merchant` as `b` inner join `contract` as `a` on `b`.`id` = `a`.`merchant_id` inner join `supplement_note` as `c` on `b`.`id` = `c`.`merchant_id` where `c`.`status` != ? order by `update_time` desc limit 10 offset 0
+180105 20:34:11   331 Execute   select c.*, a.goods_storehouse, a.contract_no, a.`province`, a.city, b.`name` as `merchant_name`, b.position as `merchant_position` from `merchant` as `b` inner join `contract` as `a` on `b`.`id` = `a`.`merchant_id` inner join `supplement_note` as `c` on `b`.`id` = `c`.`merchant_id` where `c`.`status` != 'OFF' order by `update_time` desc limit 10 offset 0
+                  331 Close stmt
+                  331 Prepare   select * from `shop` where `id` in (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                  331 Execute   select * from `shop` where `id` in (4978, 2301, 5597, 4908, 4470, 2701, 5185, 3494, 5350, 4166)
+                  331 Close stmt
+                  331 Prepare   select `id`, `name` from `goods_storehouse` where `status` = ?
+                  331 Execute   select `id`, `name` from `goods_storehouse` where `status` = 'on'
+                  331 Close stmt
+
+
+好了我们来分析其中两条sql，profiling是个神仙般的工具，没有之一；
+
+开启profiling；
+MariaDB [cmshop]> set profiling =1;
+Query OK, 0 rows affected (0.00 sec)
+
+
+MariaDB [cmshop]> select c.*, a.goods_storehouse, a.contract_no, a.`province`, a.city, b.`name` as `merchant_name`, b.position as `merchant_position` from `merchant` as `b` inner join `contract` as `a` on `b`.`id` = `a`.`merchant_id` inner join `supplement_note` as `c` on `b`.`id` = `c`.`merchant_id` where `c`.`status` != 'OFF' order by `update_time` desc limit 10 offset 0;
++------+-------------+---------+-----------------------------------+-----------+----------+------------------------------------+-------------------------------------------------------------------------------------------------------------------------+--------+----------+---------------------+---------------------+---------------------+---------------------+---------------------+------------------+------------------+-----------+-----------+--------------------------------------------+------------------------------------------------------------------------------------+
+| id   | merchant_id | shop_id | name                              | total_num | case_num | logistics_no                       | img_url                                                                                                                 | remark | status   | create_time         | update_time         | sorting_time        | deliver_time        | done_time           | goods_storehouse | contract_no      | province  | city      | merchant_name                              | merchant_position                                                                  |
++------+-------------+---------+-----------------------------------+-----------+----------+------------------------------------+-------------------------------------------------------------------------------------------------------------------------+--------+----------+---------------------+---------------------+---------------------+---------------------+---------------------+------------------+------------------+-----------+-----------+--------------------------------------------+------------------------------------------------------------------------------------+
+| 3910 |        4501 |    4978 | 2018-01-03 店铺4978的补货单       |       140 |        2 | 3910-1,3910-2                      | https://cmshopimg.cmcm.com/image/20180105/1515138964404.jpg                                                             |        | DONE     | 2018-01-03 18:51:03 | 2018-01-05 15:56:32 | 2018-01-05 10:28:48 | 2018-01-05 10:29:29 | 2018-01-05 15:56:32 |               13 | HHJJY-1712051732 | 安徽省    | 合肥市    | 安徽物本信息有限公司                       | 安徽省合肥市安徽省合肥市庐阳区北一环金鼎广场A座24楼                                |
++------+-------------+---------+-----------------------------------+-----------+----------+------------------------------------+-------------------------------------------------------------------------------------------------------------------------+--------+----------+---------------------+---------------------+---------------------+---------------------+---------------------+------------------+------------------+-----------+-----------+--------------------------------------------+------------------------------------------------------------------------------------+
+10 rows in set (9.88 sec)
+
+MariaDB [cmshop]>  select count(*) as aggregate from `merchant` as `b` inner join `contract` as `a` on `b`.`id` = `a`.`merchant_id` inner join `supplement_note` as `c` on `b`.`id` = `c`.`merchant_id` where `c`.`status` != 'OFF';
++-----------+
+| aggregate |
++-----------+
+|      3878 |
++-----------+
+1 row in set (6.62 sec)
+
+MariaDB [cmshop]> show profiles;
++----------+------------+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| Query_ID | Duration   | Query                                                                                                                                                                                                                                                                                                        |
++----------+------------+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+|        1 | 0.00016109 | select @@version_comment limit 1                                                                                                                                                                                                                                                                             |
+|        2 | 0.00019176 | SELECT DATABASE()                                                                                                                                                                                                                                                                                            |
+|        3 | 0.00015302 | set profiling =1                                                                                                                                                                                                                                                                                             |
+|        4 | 9.87510861 | select c.*, a.goods_storehouse, a.contract_no, a.`province`, a.city, b.`name` as `merchant_name`, b.position as `merchant_position` from `merchant` as `b` inner join `contract` as `a` on `b`.`id` = `a`.`merchant_id` inner join `supplement_note` as `c` on `b`.`id` = `c`.`merchant_id` where `c`.`statu |
+|        5 | 6.62114260 | select count(*) as aggregate from `merchant` as `b` inner join `contract` as `a` on `b`.`id` = `a`.`merchant_id` inner join `supplement_note` as `c` on `b`.`id` = `c`.`merchant_id` where `c`.`status` != 'OFF'                                                                                             |
++----------+------------+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+5 rows in set (0.00 sec)
+
+详细信息用 profile all 那么我们来看看sql的执行过程。
+
+下面的的几种情况是我们很容易引起性能问题特别值得警惕的几种状态：
+
+ Sending data 、copying to tmp table、Copying to tmp table on disk、copy to tmp table、Creating sort index、Sorting result、Creating sort index 。
+
+MariaDB [cmshop]> SHOW profile CPU FOR query  4;
++--------------------------------+----------+----------+------------+
+| Status                         | Duration | CPU_user | CPU_system |
++--------------------------------+----------+----------+------------+
+| starting                       | 0.000059 | 0.000000 | 0.000000   |--->sql开始执行                             
+| Waiting for query cache lock   | 0.000003 | 0.000000 | 0.000000   |--->cahce 锁 读写很容易的造成的竞争锁 很多读写就开 很多写就关 （见下面sql命中cache的执行过程）
+| init                           | 0.000003 | 0.000000 | 0.000000   |--->初始化工作                               
+| checking query cache for query | 0.000085 | 0.000000 | 0.000000   |--->qc中查询是否具备之前缓存过的sql结果
+| checking permissions           | 0.000004 | 0.000000 | 0.000000   |--->检查权限
+| checking permissions           | 0.000002 | 0.000000 | 0.000000   |
+| checking permissions           | 0.000004 | 0.000000 | 0.000000   |
+| Opening tables                 | 0.000036 | 0.000000 | 0.000000   |--->尝试开表
+| After opening tables           | 0.000006 | 0.000000 | 0.000000   |
+| System lock                    | 0.000005 | 0.000000 | 0.000000   |
+| Table lock                     | 0.000004 | 0.000000 | 0.000000   |
+| Waiting for query cache lock   | 0.000021 | 0.000000 | 0.000000   |
+| init                           | 0.000044 | 0.000000 | 0.000000   |
+| optimizing                     | 0.000025 | 0.000000 | 0.000000   |--->神仙般的优化
+| statistics                     | 0.000036 | 0.000000 | 0.000000   |--->数据的统计以便解析执行计划 性能差的时候多关注硬盘的io
+| preparing                      | 0.000022 | 0.000000 | 0.000000   |--->准备
+| Creating tmp table             | 0.000044 | 0.000000 | 0.000000   |--->创建临时表（创建适当的索引，或者少联合、子查询之类） 内存限制时候会on disk到硬盘操作 （无解的时候调整系统参数tmp_table_size/max_heap_table_size）
+| Sorting result                 | 0.000018 | 0.000000 | 0.000000   |--->表的排序 一般order by或group by导致 关注索引情况（值大时候关注索引和系统参数sort_buffer_size、max_length_for_sort_data）
+| executing                      | 0.000003 | 0.000000 | 0.000000   |--->执行
+| Sending data                   | 9.974005 | 9.908494 | 0.065990   |--->收集处理发送数据到c端（非网络发送而是硬盘读取）瓶颈的优化一般是减少扫描和数据量大小（索引、limit）
+| Creating sort index            | 0.006548 | 0.006999 | 0.000000   |--->一般order by导致在临时表排序 此时关注索引情况
+| removing tmp table             | 0.001955 | 0.000000 | 0.002000   |
+| Creating sort index            | 0.000027 | 0.000000 | 0.000000   |
+| end                            | 0.000010 | 0.000000 | 0.000000   |--->查询结束
+| query end                      | 0.000007 | 0.000000 | 0.000000   |
+| closing tables                 | 0.000004 | 0.000000 | 0.000000   |
+| Unlocking tables               | 0.000035 | 0.000000 | 0.000000   |
+| freeing items                  | 0.000013 | 0.000000 | 0.000000   |
+| updating status                | 0.000004 | 0.000000 | 0.000000   |
+| Waiting for query cache lock   | 0.000002 | 0.000000 | 0.000000   |
+| updating status                | 0.000026 | 0.000000 | 0.000000   |
+| Waiting for query cache lock   | 0.000003 | 0.000000 | 0.000000   |
+| updating status                | 0.000002 | 0.000000 | 0.000000   |
+| storing result in query cache  | 0.000004 | 0.000000 | 0.000000   |---> sql结果qc起来
+| logging slow query             | 0.000078 | 0.000000 | 0.000000   |--->线上不要开了 debug时候可以开启
+| cleaning up                    | 0.000005 | 0.000000 | 0.000000   |
++--------------------------------+----------+----------+------------+
+
+sql命中qc的执行过程：
++--------------------------------+----------+----------+------------+
+| Status                         | Duration | CPU_user | CPU_system |
++--------------------------------+----------+----------+------------+
+| starting                       | 0.000065 | 0.000000 | 0.000000   |
+| Waiting for query cache lock   | 0.000003 | 0.000000 | 0.000000   |
+| init                           | 0.000003 | 0.000000 | 0.000000   |
+| checking query cache for query | 0.000007 | 0.000000 | 0.000000   |
+| checking privileges on cached  | 0.000003 | 0.000000 | 0.000000   |
+| checking permissions           | 0.000008 | 0.000000 | 0.000000   |
+| checking permissions           | 0.000002 | 0.000000 | 0.000000   |
+| checking permissions           | 0.000003 | 0.000000 | 0.000000   |
+| sending cached result to clien | 0.000017 | 0.000000 | 0.000000   |
+| updating status                | 0.000005 | 0.000000 | 0.000000   |
+| cleaning up                    | 0.000003 | 0.000000 | 0.000000   |
++--------------------------------+----------+----------+------------+
+
+
+
+MariaDB [cmshop]> show profile for query 5;
++--------------------------------+----------+
+| Status                         | Duration |
++--------------------------------+----------+
+| starting                       | 0.000091 |
+| Waiting for query cache lock   | 0.000006 |
+| init                           | 0.000003 |
+| checking query cache for query | 0.000072 |
+| checking permissions           | 0.000004 |
+| checking permissions           | 0.000002 |
+| checking permissions           | 0.000004 |
+| Opening tables                 | 0.000031 |
+| After opening tables           | 0.000005 |
+| System lock                    | 0.000004 |
+| Table lock                     | 0.000005 |
+| Waiting for query cache lock   | 0.000021 |
+| init                           | 0.000033 |
+| optimizing                     | 0.000024 |
+| statistics                     | 0.000033 |
+| preparing                      | 0.000039 |
+| executing                      | 0.000003 |
+| Sending data                   | 6.620564 |
+| end                            | 0.000018 |
+| query end                      | 0.000024 |
+| closing tables                 | 0.000004 |
+| Unlocking tables               | 0.000017 |
+| freeing items                  | 0.000010 |
+| updating status                | 0.000004 |
+| Waiting for query cache lock   | 0.000002 |
+| updating status                | 0.000020 |
+| Waiting for query cache lock   | 0.000003 |
+| updating status                | 0.000002 |
+| storing result in query cache  | 0.000004 |
+| logging slow query             | 0.000084 |
+| cleaning up                    | 0.000006 |
++--------------------------------+----------+
+31 rows in set (0.00 sec)
+
+发现时间都消耗在Sending data上面了 Sending data 其实不是单单的发送数据（不是网络发送 是硬盘读取）这么简单 还包括收集引擎处理数据 ，导致这个问题一般是结果巨大、没有合理使用到索引，优化就是减少扫描并且读取的数据量。
+
+
+
+那么我们首先来explain看一下索引 explain也是个神仙般的工具 
+
+MariaDB [cmshop]> explain select c.*, a.goods_storehouse, a.contract_no, a.`province`, a.city, b.`name` as `merchant_name`, b.position as `merchant_position` from `merchant` as `b` inner join `contract` as `a` on `b`.`id` = `a`.`merchant_id` inner join `supplement_note` as `c` on `b`.`id` = `c`.`merchant_id` where `c`.`status` != 'OFF' order by `update_time` desc limit 10 offset 0;
++------+-------------+-------+--------+---------------+---------+---------+----------------------+------+----------------------------------------------+
+| id   | select_type | table | type   | possible_keys | key     | key_len | ref                  | rows | Extra                                        |
++------+-------------+-------+--------+---------------+---------+---------+----------------------+------+----------------------------------------------+
+|    1 | SIMPLE      | c     | ALL    | NULL          | NULL    | NULL    | NULL                 | 3948 | Using where; Using temporary; Using filesort |
+|    1 | SIMPLE      | b     | eq_ref | PRIMARY       | PRIMARY | 4       | cmshop.c.merchant_id |    1 |                                              |
+|    1 | SIMPLE      | a     | ALL    | NULL          | NULL    | NULL    | NULL                 | 5027 | Using where                                  |
++------+-------------+-------+--------+---------------+---------+---------+----------------------+------+----------------------------------------------+
+`supplement_note` as c 和 `contract` as `a`表都没有用到索引
+这条sql查询的执行成本（逻辑 IO）约为 3948 x 5027 
+
+索引的使用条件无非就三种：
+Index Key （确定使用索引扫描的数据范围）、
+Index Filter（确定哪些数据是可以使用索引去过滤条件，icp部分使用到索引 就如下面的Using index condition状态）
+Table Filte（用不到索引）
+
+mysql是利用=、>=、> 等来确定边界，利用最左原则。
+
+我们尝试加一下看看 给c表merchant_id边界上加一个索引。
+
+ALTER TABLE `cmshop`.`supplement_note` ADD INDEX (`merchant_id`);
+
+MariaDB [cmshop]> explain select c.*, a.goods_storehouse, a.contract_no, a.`province`, a.city, b.`name` as `merchant_name`, b.position as `merchant_position` from `merchant` as `b` inner join `contract` as `a` on `b`.`id` = `a`.`merchant_id` inner join `supplement_note` as `c` on `b`.`id` = `c`.`merchant_id` where `c`.`status` != 'OFF' order by `update_time` desc limit 10 offset 0;
++------+-------------+-------+--------+---------------+-------------+---------+----------------------+------+------------------------------------+
+| id   | select_type | table | type   | possible_keys | key         | key_len | ref                  | rows | Extra                              |
++------+-------------+-------+--------+---------------+-------------+---------+----------------------+------+------------------------------------+
+|    1 | SIMPLE      | a     | ALL    | NULL          | NULL        | NULL    | NULL                 | 5027 | Using temporary; Using filesort    |
+|    1 | SIMPLE      | c     | ref    | merchant_id   | merchant_id | 4       | cmshop.a.merchant_id |    1 | Using index condition; Using where |
+|    1 | SIMPLE      | b     | eq_ref | PRIMARY       | PRIMARY     | 4       | cmshop.a.merchant_id |    1 | Using where                        |
++------+-------------+-------+--------+---------------+-------------+---------+----------------------+------+------------------------------------+
+3 rows in set (0.00 sec)
+
+MariaDB [cmshop]> explain  select count(*) as aggregate from `merchant` as `b` inner join `contract` as `a` on `b`.`id` = `a`.`merchant_id` inner join `supplement_note` as `c` on `b`.`id` = `c`.`merchant_id` where `c`.`status` != 'OFF';
++------+-------------+-------+--------+---------------+-------------+---------+----------------------+------+------------------------------------+
+| id   | select_type | table | type   | possible_keys | key         | key_len | ref                  | rows | Extra                              |
++------+-------------+-------+--------+---------------+-------------+---------+----------------------+------+------------------------------------+
+|    1 | SIMPLE      | a     | ALL    | NULL          | NULL        | NULL    | NULL                 | 5027 |                                    |
+|    1 | SIMPLE      | c     | ref    | merchant_id   | merchant_id | 4       | cmshop.a.merchant_id |    1 | Using index condition; Using where |
+|    1 | SIMPLE      | b     | eq_ref | PRIMARY       | PRIMARY     | 4       | cmshop.a.merchant_id |    1 | Using where; Using index           |
++------+-------------+-------+--------+---------------+-------------+---------+----------------------+------+------------------------------------+
+
+不错用到了 清除query cache看一下执行结果  嗯不错 一个0.02 sec 一个 0.05 sec 
+
+MariaDB [cmshop]>  reset query cache;
+Query OK, 0 rows affected (0.00 sec)
+
+MariaDB [cmshop]> select c.*, a.goods_storehouse, a.contract_no, a.`province`, a.city, b.`name` as `merchant_name`, b.position as `merchant_position` from `merchant` as `b` inner join `contract` as `a` on `b`.`id` = `a`.`merchant_id` inner join `supplement_note` as `c` on `b`.`id` = `c`.`merchant_id` where `c`.`status` != 'OFF' order by `update_time` desc limit 10 offset 0;
++------+-------------+---------+-----------------------------------+-----------+----------+------------------------------------+-------------------------------------------------------------------------------------------------------------------------+--------+----------+---------------------+---------------------+---------------------+---------------------+---------------------+------------------+------------------+-----------+-----------+--------------------------------------------+------------------------------------------------------------------------------------+
+| id   | merchant_id | shop_id | name                              | total_num | case_num | logistics_no                       | img_url                                                                                                                 | remark | status   | create_time         | update_time         | sorting_time        | deliver_time        | done_time           | goods_storehouse | contract_no      | province  | city      | merchant_name                              | merchant_position                                                                  |
++------+-------------+---------+-----------------------------------+-----------+----------+------------------------------------+-------------------------------------------------------------------------------------------------------------------------+--------+----------+---------------------+---------------------+---------------------+---------------------+---------------------+------------------+------------------+-----------+-----------+--------------------------------------------+------------------------------------------------------------------------------------+
+| 3910 |        4501 |    4978 | 2018-01-03 店铺4978的补货单       |       140 |        2 | 3910-1,3910-2                      | https://cmshopimg.cmcm.com/image/20180105/1515138964404.jpg                                                             |        | DONE     | 2018-01-03 18:51:03 | 2018-01-05 15:56:32 | 2018-01-05 10:28:48 | 2018-01-05 10:29:29 | 2018-01-05 15:56:32 |               13 | HHJJY-1712051732 | 安徽省    | 合肥市    | 安徽物本信息有限公司                       | 安徽省合肥市安徽省合肥市庐阳区北一环金鼎广场A座24楼                                |
++------+-------------+---------+-----------------------------------+-----------+----------+------------------------------------+-------------------------------------------------------------------------------------------------------------------------+--------+----------+---------------------+---------------------+---------------------+---------------------+---------------------+------------------+------------------+-----------+-----------+--------------------------------------------+------------------------------------------------------------------------------------+
+10 rows in set (0.05 sec)
+MariaDB [cmshop]>  reset query cache;
+Query OK, 0 rows affected (0.00 sec)
+
+MariaDB [cmshop]> select count(*) as aggregate from `merchant` as `b` inner join `contract` as `a` on `b`.`id` = `a`.`merchant_id` inner join `supplement_note` as `c` on `b`.`id` = `c`.`merchant_id` where `c`.`status` != 'OFF';
++-----------+
+| aggregate |
++-----------+
+|      3878 |
++-----------+
+1 row in set (0.02 sec)
+
+应该解决响应蜗牛的问题了 但是完了么  没完！继续。。。
+
+Using temporary; Using filesort 是什么鬼。
+
+那我们尝试再加一个索引看看
+
+ALTER TABLE `cmshop`.`contract` ADD INDEX (`merchant_id`);
+
+
+MariaDB [cmshop]> explain select c.*, a.goods_storehouse, a.contract_no, a.`province`, a.city, b.`name` as `merchant_name`, b.position as `merchant_position` from `merchant` as `b` inner join `contract` as `a` on `b`.`id` = `a`.`merchant_id` inner join `supplement_note` as `c` on `b`.`id` = `c`.`merchant_id` where `c`.`status` != 'OFF' order by `update_time` desc limit 10 offset 0;
++------+-------------+-------+--------+---------------+-------------+---------+----------------------+------+-----------------------------+
+| id   | select_type | table | type   | possible_keys | key         | key_len | ref                  | rows | Extra                       |
++------+-------------+-------+--------+---------------+-------------+---------+----------------------+------+-----------------------------+
+|    1 | SIMPLE      | c     | ALL    | merchant_id   | NULL        | NULL    | NULL                 | 3948 | Using where; Using filesort |
+|    1 | SIMPLE      | b     | eq_ref | PRIMARY       | PRIMARY     | 4       | cmshop.c.merchant_id |    1 |                             |
+|    1 | SIMPLE      | a     | ref    | merchant_id   | merchant_id | 4       | cmshop.c.merchant_id |    1 | Using index condition       |
++------+-------------+-------+--------+---------------+-------------+---------+----------------------+------+-----------------------------+
+
+Using temporary问题解决了 但是c表 没有用到索引而且Using filesort 让人很不舒服 看看order `update_time` 是不是可以动动手脚？
+
+ALTER TABLE `cmshop`.`supplement_note` ADD INDEX (`update_time`);
+
+
+MariaDB [cmshop]> explain select c.*, a.goods_storehouse, a.contract_no, a.`province`, a.city, b.`name` as `merchant_name`, b.position as `merchant_position` from `merchant` as `b` inner join `contract` as `a` on `b`.`id` = `a`.`merchant_id` inner join `supplement_note` as `c` on `b`.`id` = `c`.`merchant_id` where `c`.`status` != 'OFF' order by `update_time` desc limit 10 offset 0;
++------+-------------+-------+--------+---------------+-------------+---------+----------------------+------+-----------------------+
+| id   | select_type | table | type   | possible_keys | key         | key_len | ref                  | rows | Extra                 |
++------+-------------+-------+--------+---------------+-------------+---------+----------------------+------+-----------------------+
+|    1 | SIMPLE      | c     | index  | merchant_id   | update_time | 5       | NULL                 |   10 | Using where           |
+|    1 | SIMPLE      | b     | eq_ref | PRIMARY       | PRIMARY     | 4       | cmshop.c.merchant_id |    1 |                       |
+|    1 | SIMPLE      | a     | ref    | merchant_id   | merchant_id | 4       | cmshop.c.merchant_id |    1 | Using index condition |
++------+-------------+-------+--------+---------------+-------------+---------+----------------------+------+-----------------------+
+3 rows in set (0.00 sec)
+
+这个sql问题解决了 虽然c表的type为index 索引扫描但是总比全表扫描all强 
+
+还剩下一个sql好像看着还不理想 c表没有用到索引
+
+MariaDB [cmshop]> explain  select count(*) as aggregate from `merchant` as `b` inner join `contract` as `a` on `b`.`id` = `a`.`merchant_id` inner join `supplement_note` as `c` on `b`.`id` = `c`.`merchant_id` where `c`.`status` != 'OFF';
++------+-------------+-------+--------+--------------------+-------------+---------+----------------------+------+--------------------------+
+| id   | select_type | table | type   | possible_keys      | key         | key_len | ref                  | rows | Extra                    |
++------+-------------+-------+--------+--------------------+-------------+---------+----------------------+------+--------------------------+
+|    1 | SIMPLE      | c     | ALL    | merchant_id,status | NULL        | NULL    | NULL                 | 3948 | Using where              |
+|    1 | SIMPLE      | b     | eq_ref | PRIMARY            | PRIMARY     | 4       | cmshop.c.merchant_id |    1 | Using index              |
+|    1 | SIMPLE      | a     | ref    | merchant_id        | merchant_id | 4       | cmshop.c.merchant_id |    1 | Using where; Using index |
++------+-------------+-------+--------+--------------------+-------------+---------+----------------------+------+--------------------------+
+
+怎么办呢
+
+看一下sql 能驱动c表用到索引的条件一个是`merchant_id` 因为已经在此列建过索引 另一个驱动的条件是`status`
+
+我们先来尝试第一个方案 merchant_id来驱动 那就给他个range来试试 ：
+MariaDB [cmshop]> explain  select count(*) as aggregate from `merchant` as `b` inner join `contract` as `a` on `b`.`id` = `a`.`merchant_id` inner join `supplement_note` as `c` on `b`.`id` = `c`.`merchant_id` where `c`.`status` != 'OFF'and `c`.`merchant_id` >0;
++------+-------------+-------+-------+---------------+-------------+---------+-------------+------+--------------------------+
+| id   | select_type | table | type  | possible_keys | key         | key_len | ref         | rows | Extra                    |
++------+-------------+-------+-------+---------------+-------------+---------+-------------+------+--------------------------+
+|    1 | SIMPLE      | b     | range | PRIMARY       | PRIMARY     | 4       | NULL        | 2591 | Using where; Using index |
+|    1 | SIMPLE      | c     | ref   | merchant_id   | merchant_id | 4       | cmshop.b.id |    1 | Using where              |
+|    1 | SIMPLE      | a     | ref   | merchant_id   | merchant_id | 4       | cmshop.b.id |    1 | Using where; Using index |
++------+-------------+-------+-------+---------------+-------------+---------+-------------+------+--------------------------+
+3 rows in set (0.00 sec)
+
+成功。
+
+我们先来尝试第二个方案 status来驱动 那就给他也来个range来试试 ：
+
+
+ ALTER TABLE `cmshop`.`supplement_note` ADD INDEX (`status`);
+MariaDB [cmshop]> explain  select count(*) as aggregate from `merchant` as `b` inner join `contract` as `a` on `b`.`id` = `a`.`merchant_id` inner join `supplement_note` as `c` on `b`.`id` = `c`.`merchant_id` where `c`.`status` != 'OFF';
++------+-------------+-------+--------+--------------------+-------------+---------+----------------------+------+--------------------------+
+| id   | select_type | table | type   | possible_keys      | key         | key_len | ref                  | rows | Extra                    |
++------+-------------+-------+--------+--------------------+-------------+---------+----------------------+------+--------------------------+
+|    1 | SIMPLE      | c     | ALL    | merchant_id,status | NULL        | NULL    | NULL                 | 3948 | Using where              |
+|    1 | SIMPLE      | b     | eq_ref | PRIMARY            | PRIMARY     | 4       | cmshop.c.merchant_id |    1 | Using index              |
+|    1 | SIMPLE      | a     | ref    | merchant_id        | merchant_id | 4       | cmshop.c.merchant_id |    1 | Using where; Using index |
++------+-------------+-------+--------+--------------------+-------------+---------+----------------------+------+--------------------------+
+
+怎么不行？看一下sql 因为 `c`.`status` != 'OFF' 那我们变通一下 （可以查一下mysql索引的机制和哪些情况下索引失效）
+
+
+MariaDB [cmshop]> explain  select count(*) as aggregate from `merchant` as `b` inner join `contract` as `a` on `b`.`id` = `a`.`merchant_id` inner join `supplement_note` as `c` on `b`.`id` = `c`.`merchant_id` where `c`.`status` = 'OFF';
++------+-------------+-------+--------+--------------------+-------------+---------+----------------------+------+--------------------------+
+| id   | select_type | table | type   | possible_keys      | key         | key_len | ref                  | rows | Extra                    |
++------+-------------+-------+--------+--------------------+-------------+---------+----------------------+------+--------------------------+
+|    1 | SIMPLE      | c     | ref    | merchant_id,status | status      | 1       | const                |  260 | Using index condition    |
+|    1 | SIMPLE      | b     | eq_ref | PRIMARY            | PRIMARY     | 4       | cmshop.c.merchant_id |    1 | Using index              |
+|    1 | SIMPLE      | a     | ref    | merchant_id        | merchant_id | 4       | cmshop.c.merchant_id |    1 | Using where; Using index |
++------+-------------+-------+--------+--------------------+-------------+---------+----------------------+------+--------------------------+
+3 rows in set (0.00 sec)
+
+MariaDB [cmshop]> explain  select count(*) as aggregate from `merchant` as `b` inner join `contract` as `a` on `b`.`id` = `a`.`merchant_id` inner join `supplement_note` as `c` on `b`.`id` = `c`.`merchant_id` where `c`.`status` in('OFF');
++------+-------------+-------+--------+--------------------+-------------+---------+----------------------+------+--------------------------+
+| id   | select_type | table | type   | possible_keys      | key         | key_len | ref                  | rows | Extra                    |
++------+-------------+-------+--------+--------------------+-------------+---------+----------------------+------+--------------------------+
+|    1 | SIMPLE      | c     | ref    | merchant_id,status | status      | 1       | const                |  260 | Using index condition    |
+|    1 | SIMPLE      | b     | eq_ref | PRIMARY            | PRIMARY     | 4       | cmshop.c.merchant_id |    1 | Using index              |
+|    1 | SIMPLE      | a     | ref    | merchant_id        | merchant_id | 4       | cmshop.c.merchant_id |    1 | Using where; Using index |
++------+-------------+-------+--------+--------------------+-------------+---------+----------------------+------+--------------------------+
+3 rows in set (0.00 sec)
+
+ok 全都用上了。
+
+MariaDB [cmshop]> show profile for query 5;
++--------------------------------+----------+
+| Status                         | Duration |
++--------------------------------+----------+
+| starting                       | 0.000065 |
+| Waiting for query cache lock   | 0.000003 |
+| init                           | 0.000003 |
+| checking query cache for query | 0.000083 |
+| checking permissions           | 0.000004 |
+| checking permissions           | 0.000002 |
+| checking permissions           | 0.000005 |
+| Opening tables                 | 0.000035 |
+| After opening tables           | 0.000006 |
+| System lock                    | 0.000005 |
+| Table lock                     | 0.000004 |
+| Waiting for query cache lock   | 0.000026 |
+| init                           | 0.000055 |
+| optimizing                     | 0.000025 |
+| statistics                     | 0.000040 |
+| preparing                      | 0.000039 |
+| Sorting result                 | 0.000018 |
+| executing                      | 0.000004 |
+| Sending data                   | 0.000271 |
+| end                            | 0.000006 |
+| query end                      | 0.000006 |
+| closing tables                 | 0.000003 |
+| Unlocking tables               | 0.000010 |
+| freeing items                  | 0.000008 |
+| updating status                | 0.000004 |
+| Waiting for query cache lock   | 0.000003 |
+| updating status                | 0.000015 |
+| Waiting for query cache lock   | 0.000003 |
+| updating status                | 0.000002 |
+| storing result in query cache  | 0.000005 |
+| cleaning up                    | 0.000004 |
++--------------------------------+----------+
+31 rows in set (0.01 sec)
+
+开始病状现象到此已经消失了 666了
+
+好了 在不改变sql结构情况下 做了一个小小的索引优化 说白了其实就是加了几个索引罢了，却引来这么一大篇 ，其实sql引来的性能问题大部分是索引使用不当造成的，少数部分是配置和使用场景不当造成的。复杂的sql建议拆开利于优化，计算数据的需求就扔给php来处理吧。
+
+获取mysql状态常使用的命令：show xxx; 
