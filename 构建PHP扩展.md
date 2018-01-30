@@ -208,7 +208,7 @@
     Welcomme to PHP_KNOWLEDGE <br/>1517300371<br/>1517307092<br/>
 
 ![](https://github.com/huluzhang/doc/blob/master/img/php_knowledge_phpinfo.png)
->说明我们的扩展正常运行了。我们回过头来分析一下`php_knowledge.c`的结构，其实一部分是PHP的模块的生命周期所经历的一个流程实现，另一部分是我们用C实现的函数和PHP的关联：
+>说明我们的扩展正常运行了。这里留个疑问，为什么cli执行显示mint时间和rint时间一样，而页面的时间不一样呢？我们在后面的章节会讲到这个问题。我们回过头来分析一下`php_knowledge.c`的结构，其实一部分是PHP的模块的生命周期所经历的一个流程实现，另一部分是我们用C实现的函数和PHP的关联：
 
        MINT->RINI->RSHUTDOWN->MSHUTDOWN
        PHP_FUNCTION->zend_function_entry-ZEND_GET_MODULE
