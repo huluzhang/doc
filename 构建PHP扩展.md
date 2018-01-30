@@ -413,6 +413,7 @@
 
 
 >关于PHP的扩展就讲到这里了，只是讲了一点皮毛，希望能给大家一些启发。
+
 >**本节参考**：
  - ext_skel:http://php.net/manual/zh/internals2.buildsys.skeleton.php 
  -  PECL_Gen: http://pecl.php.net/package/PECL_Gen 
