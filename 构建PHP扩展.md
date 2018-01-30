@@ -413,11 +413,10 @@
 
 
 >关于PHP的扩展就讲到这里了，只是讲了一点皮毛，希望能给大家一些启发。
-
-> 本节参考：
-> ext_skel http://php.net/manual/zh/internals2.buildsys.skeleton.php
-> PECL_Gen http://pecl.php.net/package/PECL_Gen
->《GNU autoconf》http://www.gnu.org/software/autoconf/manual/
->《PHP官方手册》http://php.net/manual/zh/internals2.structure.php
->《用C/C++扩展你的PHP》http://www.laruence.com/2009/04/28/719.html
->《PHP扩展开发及内核应用》http://www.cunmou.com
+>**本节参考**：
+ - ext_skel:http://php.net/manual/zh/internals2.buildsys.skeleton.php 
+ -  PECL_Gen: http://pecl.php.net/package/PECL_Gen 
+ - 《GNU autoconf》:http://www.gnu.org/software/autoconf/manual/
+ - 《PHP官方手册》:http://php.net/manual/zh/internals2.structure.php
+ - 《用C/C++扩展你的PHP》:http://www.laruence.com/2009/04/28/719.html
+ - 《PHP扩展开发及内核应用》:http://www.cunmou.com
