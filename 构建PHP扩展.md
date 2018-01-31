@@ -5,7 +5,6 @@
 
      [root@iZ8 ~]# cd php-7.0.2/ext   
      [root@iZ8 ext]# ./ext_skel --extname=php_knowledge
-     
 >执行完`ext_skel`后会在ext目录生成扩展的骨架文件。
 
     [root@iZ8 ext]# cd php_knowledge
@@ -19,6 +18,7 @@
     -rw-r--r-- 1 root root  523 Jan 29 15:36 php_knowledge.php
     -rw-r--r-- 1 root root 2773 Jan 29 15:36 php_php_knowledge.h
     drwxr-xr-x 2 root root 4096 Jan 29 15:36 tests  
+
 
 >生成的扩展骨架，主要包含以下文件：
 ***`config.m4`***
