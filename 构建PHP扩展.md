@@ -125,7 +125,7 @@
     Make sure that the comment is aligned:
     [  --enable-php_knowledge           Enable php_knowledge support])
 
-编写扩展函数
+编写扩展函数与安装
 ------
 
 >下一步来实现扩展逻辑的主源`php_knowledge.c`，编写一个PHP函数`php_knowledge（）`用来输出欢迎信息和打印mint、rint的调用时间来看看有什么区别。
