@@ -1,11 +1,11 @@
 创建PHP扩展的骨架
 ------------
 
->开发PHP扩展其实就是个模板盖楼。为了方便我们首先要用工具生成扩展的框架，`ext_skel`是PHP发行包自带的一个生成骨架扩展的脚本，另外还有一种扩展骨架生成工具PECL_Gen，当然你对扩展开发很熟悉的话可以忽略这些工具。下面我们通过一个例子来讲解PHP的扩展的构建，完成一个名字为`php_knowledge`，内置`php_knowledge（）`的扩展，使用`ext_skel`来生成扩展的骨架（模板），`ext_skel` 的使用请看工具的帮助`./ext_skel`。
+>开发PHP扩展其实就是个模板盖楼。为了方便，我们首先要用工具生成扩展的框架。`ext_skel`是PHP发行包自带的一个生成扩展框架的脚本，另外还有一种生成工具PECL_Gen，当然你对扩展开发很熟悉的话可以忽略这些工具。下面我们通过一个例子来讲解PHP的扩展的构建，完成一个名字为`php_knowledge`，内置函数`php_knowledge（）`的扩展，来输出欢迎信息和MINIT/RINT阶段的调用时间。我们使用`ext_skel`来帮助生成扩展的框架（模板）。脚本的使用帮助请看自带的--help`./ext_skel`。
 
      [root@iZ8 ~]# cd php-7.0.2/ext   
      [root@iZ8 ext]# ./ext_skel --extname=php_knowledge
->执行完`ext_skel`后会在ext目录生成扩展的骨架文件。
+>执行完`ext_skel`后会在ext中生成扩展目录和扩展的骨架文件。
 
     [root@iZ8 ext]# cd php_knowledge
         [root@iZ8 php_knowledge]# ll
@@ -20,22 +20,36 @@
         drwxr-xr-x 2 root root 4096 Jan 29 15:36 tests
 
   
->生成的扩展骨架，主要包含以下文件：
->***`config.m4`***
->文件使用 GNU autoconf语法编写，UNIX构建系统配置,生成configure脚本、Makefile等。
->***`config.w32`***
+
+
+
+
+>  生成的扩展骨架，主要包含以下文件：
+
+> **`config.m4`**
+
+> 文件使用 GNU autoconf语法编写，UNIX构建系统配置,生成configure脚本、Makefile等。
+
+>**`config.w32`**
+>
 >window下面的系统配置。
->***`php_knowledge.c`***
+
+>**`php_knowledge.c`**
+
 >扩展的主要源码文件，主要包含模块结构定义、INI条目、管理函数、用户空间函数和其它扩展所需的内容。
->***`php_php_knowledge.h`***
+
+>**`php_php_knowledge.h`**
+
 >扩展的头文件，主要包含结构的指针定义、附加的宏、原型等。
->***`php_knowledge.php`***
+
+>**`php_knowledge.php`**
+
 >扩展的验证脚本，主要用来验证扩展是否被成功地编译到PHP中。
 
 配置config.m4文件
 ------------
 
->第二步修改config.m4，做好编译前的配置，首先我们先拆解分析这个文件，需要关注几个函数（宏）：
+>下一步修改config.m4，做好编译前的配置，首先我们先拆解分析这个文件，需要关注一下下面的几个函数（宏）：
 
 
 ----------
@@ -128,9 +142,9 @@
 编写扩展函数与安装
 ------
 
->下一步来实现扩展逻辑的主源`php_knowledge.c`，编写一个PHP函数`php_knowledge（）`用来输出欢迎信息和打印mint、rint的调用时间来看看有什么区别。
+>接下来就要编写实现扩展具体功能的主要源文件`php_knowledge.c`，我们将实现一个PHP函数`php_knowledge（）`用来输出欢迎信息和打印`MINIT`、`RINIT`的调用时间，来看看有什么区别。
 
- >下一步在`php_knowledge.c`中增加实现用来PHP调用的函数：
+ >在`php_knowledge.c`里增加实现PHP中调用的函数：
 
     PHP_FUNCTION(php_knowledge)
     {
@@ -139,7 +153,7 @@
         php_printf("%d<br/>",rinit_time);
         RETURN_TRUE;
     }
->获取mint的调用时间，修改`PHP_MINIT_FUNCTION`为：
+>获取`MINIT`的调用时间，修改`PHP_MINIT_FUNCTION`为：
 
     int minit_time;
     PHP_MINIT_FUNCTION(php_knowledge)
@@ -149,7 +163,7 @@
             return SUCCESS;
     }
 
->获取rinit的调用时间，修改`PHP_RINIT_FUNCTION`为：
+>获取`RINIT`的调用时间，修改`PHP_RINIT_FUNCTION`为：
 
     int rinit_time;
     PHP_RINIT_FUNCTION(php_knowledge)
@@ -158,7 +172,7 @@
             return SUCCESS;
     }
 
->修改`PHP_MINFO（）`使`phpinfo`有友好的信息，使用`php_info_print_table*`绘制表格：
+>修改`PHP_MINFO（）`使`phpinfo`能输出友好的信息。我们使用`php_info_print_table*`来绘制表格：
 
     PHP_MINFO_FUNCTION(php_knowledge)
     {
@@ -172,7 +186,7 @@
             */
     }
 
->在`php_knowledge_functions`关联我们刚实现用来在PHP调取的C函数php_knowledge：
+>在`php_knowledge_functions`中关联我们刚实现在PHP调取的C函数php_knowledge：
 
     const zend_function_entry php_knowledge_functions[] = {
             PHP_FE(confirm_php_knowledge_compiled,  NULL)
@@ -180,7 +194,7 @@
             PHP_FE_END      /* Must be the last line in php_knowledge_functions[] */
     };
 
->保存`php_knowledge.c`，一个简单的扩展实例源码应该写完了，下一步该编译生成我们的模块，加载在PHP上来验证一下。
+>保存`php_knowledge.c`，一个简单的扩展实例源码应该写完了，下一步该编译生成我们的模块。加载在PHP上来验证一下。
 
     [root@iZ8 php_knowledge]# /data/opt/php7/bin/php ./php_knowledge.php  
     Functions available in the test extension:
@@ -211,13 +225,13 @@
     Welcomme to PHP_KNOWLEDGE <br/>1517300371<br/>1517307092<br/>
 
 ![](https://github.com/huluzhang/doc/blob/master/img/php_knowledge_phpinfo.png)
->说明我们的扩展正常运行了。这里留个疑问，为什么cli执行显示mint时间和rint时间一样，而页面的时间不一样呢？我们在后面的章节会讲到这个问题。我们回过头来分析一下`php_knowledge.c`的结构，其实一部分就是贯穿PHP模块的生命周期所经历的一个流程，另一部分是我们C函数的具体实现和PHP调用做关联：
+>说明我们的扩展正常运行了。这里留个疑问，为什么用CLI执行显示MINIT时间和RINIT时间一样，而页面的两个时间不一样呢？我们在后面的章节会讲到这个问题。现在我们回过头来分析一下`php_knowledge.c`的结构，这其实一部分就是贯穿PHP模块生命周期所经历的一个流程，另一部分是我们C函数的具体实现和PHP调用做关联：
 
        MINT->RINI->RSHUTDOWN->MSHUTDOWN
        PHP_FUNCTION->zend_function_entry->ZEND_GET_MODULE
 
    
->回过头来我们来拆解一下`php_knowledge.c` 主要包含下面几个函数（宏）：
+>分析一下`php_knowledge.c`， 我们发现主要包含下面几个函数（宏）：
 
 ***`ZEND_DECLARE_MODULE_GLOBALS(php_knowledge)`***
  >模块中的全局变量 
