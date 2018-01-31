@@ -1,15 +1,12 @@
 创建PHP扩展的骨架
 ------------
 
->开发PHP扩展其实就是个模板填坑,首先我们要生成扩展的框架，当然你对扩展开发很熟悉的话可以忽略这个工具。`ext_skel`是PHP自带的一个生成骨架扩展的脚本，另外还有一种扩展骨架生成工具PECL_Gen。我们通过一个例子来讲解PHP的扩展的构建。使用`ext_skel`来生成扩展的骨架（模板），`ext_skel` 的使用请看工具的帮助命令。`php_knowledge`是我们扩展的名字。
+>开发PHP扩展其实就是个模板盖楼。为了方便我们首先要用工具生成扩展的框架，`ext_skel`是PHP发行包自带的一个生成骨架扩展的脚本，另外还有一种扩展骨架生成工具PECL_Gen，当然你对扩展开发很熟悉的话可以忽略这些工具。下面我们通过一个例子来讲解PHP的扩展的构建，完成一个名字为`php_knowledge`，内置`php_knowledge（）`的扩展，使用`ext_skel`来生成扩展的骨架（模板），`ext_skel` 的使用请看工具的帮助`./ext_skel`。
 
      [root@iZ8 ~]# cd php-7.0.2/ext   
      [root@iZ8 ext]# ./ext_skel --extname=php_knowledge
-     
-配置config.m4文件
------------
-
-执行完`ext_skel`后会在ext目录生成扩展的骨架文件。
+     
+>执行完`ext_skel`后会在ext目录生成扩展的骨架文件。
 
     [root@iZ8 ext]# cd php_knowledge
     [root@iZ8 php_knowledge]# ll
@@ -35,7 +32,10 @@
 ***`php_knowledge.php`***
 >扩展的验证脚本，主要用来验证扩展是否被成功地编译到PHP中。
 
->第一步修改config.m4，做好编译前的配置，首先我们先拆解分析这个文件，需要关注几个函数（宏）：
+配置config.m4文件
+-----------
+
+>第二步修改config.m4，做好编译前的配置，首先我们先拆解分析这个文件，需要关注几个函数（宏）：
 
 
 ----------
