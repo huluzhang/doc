@@ -23,7 +23,7 @@
     -rw-r--r-- 1 root root 2773 Jan 29 15:36 php_php_knowledge.h
     drwxr-xr-x 2 root root 4096 Jan 29 15:36 tests  
 
->查看一下目录，主要包含以下文件：
+>生成的扩展骨架，主要包含以下文件：
 ***`config.m4`***
 >文件使用 GNU autoconf语法编写，UNIX构建系统配置,生成configure脚本、Makefile等。
 ***`config.w32`***
@@ -35,7 +35,7 @@
 ***`php_knowledge.php`***
 >扩展的验证脚本，主要用来验证扩展是否被成功地编译到PHP中。
 
->接下来我们要修改config.m4，做好编译前的配置，首先我们先拆解分析这个文件，需要关注几个函数（宏）：
+>第一步修改config.m4，做好编译前的配置，首先我们先拆解分析这个文件，需要关注几个函数（宏）：
 
 
 ----------
@@ -127,7 +127,7 @@
 
 >下一步来实现扩展逻辑的主源`php_knowledge.c`，编写一个PHP函数`php_knowledge（）`用来输出欢迎信息和打印mint、rint的调用时间来看看有什么区别。
 
- >在`php_knowledge.c`中增加实现用来PHP调用的函数：
+ >下一步在`php_knowledge.c`中增加实现用来PHP调用的函数：
 
     PHP_FUNCTION(php_knowledge)
     {
@@ -169,7 +169,7 @@
             */
     }
 
->在`php_knowledge_functions`关联我们刚实现的C函数php_knowledge：
+>在`php_knowledge_functions`关联我们刚实现用来在PHP调取的C函数php_knowledge：
 
     const zend_function_entry php_knowledge_functions[] = {
             PHP_FE(confirm_php_knowledge_compiled,  NULL)
@@ -177,7 +177,7 @@
             PHP_FE_END      /* Must be the last line in php_knowledge_functions[] */
     };
 
->保存`php_knowledge.c`，一个简单的扩展实例源码应该写完了，下一步该编译生成我们的模块，挂在PHP上来验证一下。
+>保存`php_knowledge.c`，一个简单的扩展实例源码应该写完了，下一步该编译生成我们的模块，加载在PHP上来验证一下。
 
     [root@iZ8 php_knowledge]# /data/opt/php7/bin/php ./php_knowledge.php  
     Functions available in the test extension:
@@ -208,13 +208,13 @@
     Welcomme to PHP_KNOWLEDGE <br/>1517300371<br/>1517307092<br/>
 
 ![](https://github.com/huluzhang/doc/blob/master/img/php_knowledge_phpinfo.png)
->说明我们的扩展正常运行了。这里留个疑问，为什么cli执行显示mint时间和rint时间一样，而页面的时间不一样呢？我们在后面的章节会讲到这个问题。我们回过头来分析一下`php_knowledge.c`的结构，其实一部分是PHP的模块的生命周期所经历的一个流程实现，另一部分是我们用C实现的函数和PHP的关联：
+>说明我们的扩展正常运行了。这里留个疑问，为什么cli执行显示mint时间和rint时间一样，而页面的时间不一样呢？我们在后面的章节会讲到这个问题。我们回过头来分析一下`php_knowledge.c`的结构，其实一部分就是贯穿PHP模块的生命周期所经历的一个流程，另一部分是我们C函数的具体实现和PHP调用做关联：
 
        MINT->RINI->RSHUTDOWN->MSHUTDOWN
        PHP_FUNCTION->zend_function_entry->ZEND_GET_MODULE
 
    
->回过头来我们来拆解一下`php_knowledge.c`：
+>回过头来我们来拆解一下`php_knowledge.c` 主要包含下面几个函数（宏）：
 
 ***`ZEND_DECLARE_MODULE_GLOBALS(php_knowledge)`***
  >模块中的全局变量 
