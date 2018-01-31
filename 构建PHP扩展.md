@@ -8,32 +8,32 @@
 >执行完`ext_skel`后会在ext目录生成扩展的骨架文件。
 
     [root@iZ8 ext]# cd php_knowledge
-    [root@iZ8 php_knowledge]# ll
-    total 32
-    -rw-r--r-- 1 root root 2274 Jan 29 15:36 config.m4
-    -rw-r--r-- 1 root root  345 Jan 29 15:36 config.w32
-    -rw-r--r-- 1 root root   13 Jan 29 15:36 CREDITS
-    -rw-r--r-- 1 root root    0 Jan 29 15:36 EXPERIMENTAL
-    -rw-r--r-- 1 root root 5337 Jan 29 15:36 php_knowledge.c 
-    -rw-r--r-- 1 root root  523 Jan 29 15:36 php_knowledge.php
-    -rw-r--r-- 1 root root 2773 Jan 29 15:36 php_php_knowledge.h
-    drwxr-xr-x 2 root root 4096 Jan 29 15:36 tests  
+        [root@iZ8 php_knowledge]# ll
+        total 32
+        -rw-r--r-- 1 root root 2274 Jan 29 15:36 config.m4
+        -rw-r--r-- 1 root root  345 Jan 29 15:36 config.w32
+        -rw-r--r-- 1 root root   13 Jan 29 15:36 CREDITS
+        -rw-r--r-- 1 root root    0 Jan 29 15:36 EXPERIMENTAL
+        -rw-r--r-- 1 root root 5337 Jan 29 15:36 php_knowledge.c 
+        -rw-r--r-- 1 root root  523 Jan 29 15:36 php_knowledge.php
+        -rw-r--r-- 1 root root 2773 Jan 29 15:36 php_php_knowledge.h
+        drwxr-xr-x 2 root root 4096 Jan 29 15:36 tests
 
-
-> 生成的扩展骨架，主要包含以下文件：
-> ***`config.m4`***
-> 文件使用 GNU autoconf语法编写，UNIX构建系统配置,生成configure脚本、Makefile等。
-> ***`config.w32`***
-> window下面的系统配置。
-> ***`php_knowledge.c`***
-> 扩展的主要源码文件，主要包含模块结构定义、INI条目、管理函数、用户空间函数和其它扩展所需的内容。
-> ***`php_php_knowledge.h`***
-> 扩展的头文件，主要包含结构的指针定义、附加的宏、原型等。
-> ***`php_knowledge.php`***
-> 扩展的验证脚本，主要用来验证扩展是否被成功地编译到PHP中。
+  
+>生成的扩展骨架，主要包含以下文件：
+>***`config.m4`***
+>文件使用 GNU autoconf语法编写，UNIX构建系统配置,生成configure脚本、Makefile等。
+>***`config.w32`***
+>window下面的系统配置。
+>***`php_knowledge.c`***
+>扩展的主要源码文件，主要包含模块结构定义、INI条目、管理函数、用户空间函数和其它扩展所需的内容。
+>***`php_php_knowledge.h`***
+>扩展的头文件，主要包含结构的指针定义、附加的宏、原型等。
+>***`php_knowledge.php`***
+>扩展的验证脚本，主要用来验证扩展是否被成功地编译到PHP中。
 
 配置config.m4文件
------------
+------------
 
 >第二步修改config.m4，做好编译前的配置，首先我们先拆解分析这个文件，需要关注几个函数（宏）：
 
@@ -89,16 +89,18 @@
       AC_MSG_ERROR([wrong php_knowledge lib version or lib not found])  ],[  -L$PHP_KNOWLEDGE_DIR/$PHP_LIBDIR -lm ])        
 
 >`PHP_CHECK_LIBRARY（）`用于验证我们的共享对象是否包含一个已知函数或符号，有五个参数：
+
  1. 库的名称`LIBNAME`。
  2. 寻找的库函数`LIBSYMBOL`。
  3. 找到后采取的行动，用`PHP_ADD_LIBRARY_WITH_PATH()`构建所需库文件路径和库资源，主要是为解决同名库或者库不兼容。
  4. 没找到采取的行动，比如我们通过`AC_MSG_ERROR`报出错误信息。
  5. 用于指定额外的编译器和链接器标记，确保编译器知道在哪里可以找到共享对象。
+
  `PHP_ADD_LIBRARY_WITH_PATH（）`一共三个参数：
- 1. 库名
+ 1. 库名。
  2. 路径。
  3. 存储信息的变量名字。
-
+ 
 
 ----------
 
