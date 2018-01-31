@@ -20,17 +20,17 @@
     drwxr-xr-x 2 root root 4096 Jan 29 15:36 tests  
 
 
->生成的扩展骨架，主要包含以下文件：
-***`config.m4`***
->文件使用 GNU autoconf语法编写，UNIX构建系统配置,生成configure脚本、Makefile等。
-***`config.w32`***
->window下面的系统配置。
-***`php_knowledge.c`***
->扩展的主要源码文件，主要包含模块结构定义、INI条目、管理函数、用户空间函数和其它扩展所需的内容。
-***`php_php_knowledge.h`***
->扩展的头文件，主要包含结构的指针定义、附加的宏、原型等。
-***`php_knowledge.php`***
->扩展的验证脚本，主要用来验证扩展是否被成功地编译到PHP中。
+> 生成的扩展骨架，主要包含以下文件：
+> ***`config.m4`***
+> 文件使用 GNU autoconf语法编写，UNIX构建系统配置,生成configure脚本、Makefile等。
+> ***`config.w32`***
+> window下面的系统配置。
+> ***`php_knowledge.c`***
+> 扩展的主要源码文件，主要包含模块结构定义、INI条目、管理函数、用户空间函数和其它扩展所需的内容。
+> ***`php_php_knowledge.h`***
+> 扩展的头文件，主要包含结构的指针定义、附加的宏、原型等。
+> ***`php_knowledge.php`***
+> 扩展的验证脚本，主要用来验证扩展是否被成功地编译到PHP中。
 
 配置config.m4文件
 -----------
@@ -110,10 +110,11 @@
 >声明了这个扩展的名称、需要的源文件名、此扩展的编译形式。一共有六个参数：
  1. 扩展的名称。
  2. 用于构建扩展的源或文件的列表。
- 3. 扩展应该动态加载还是静态编译。`$ext_shared`变量会为这点设置适当de 值。
+ 3. 扩展应该动态加载还是静态编译。`$ext_shared`变量会为这设置适当的值。
  4. 指定一个`SAPI类`，仅用于专门需要 `CGI` 或 `CLI SAPI` 的扩展。
  5. 指定构建时要加`CFLAGS` 的标志列表。
  6. 是否使用`$CXX` 代替`$CC` 。
+ >平常我们一般使用前三个参数。
  
 >熟悉了`config.m4`的大体内容后我们来做一下修改，这个例子不需要依赖第三方所以用`PHP_ARG_ENABLE`方式，找到`PHP_ARG_ENABLE`并去掉前面的dnl注释：
 
@@ -155,7 +156,7 @@
             return SUCCESS;
     }
 
->修改`PHP_MINFO（）`使`phpinfo`有友好的信息，使用`php_info_print_table`绘制表格：
+>修改`PHP_MINFO（）`使`phpinfo`有友好的信息，使用`php_info_print_table*`绘制表格：
 
     PHP_MINFO_FUNCTION(php_knowledge)
     {
@@ -223,7 +224,7 @@
 ----------
 
 
-***`PHP_INI_BEGIN()和PHP_INI_END()`***
+***`PHP_INI_BEGIN()&PHP_INI_END()`***
 
     PHP_INI_BEGIN()
     //注册自定义的ini指令,放这里夹着。
@@ -366,7 +367,7 @@
 ----------
 
 
-***`const zend_function_entry php_knowledge_functions[] = {}***`
+***`const zend_function_entry php_knowledge_functions[] = {}`***
 
     const zend_function_entry php_knowledge_functions[] = {
             //PHP_FE()宏函数是对我们编写的扩展函数的声明
@@ -381,7 +382,7 @@
 ----------
 
 
-***`zend_module_entry php_knowledge_module_entry = {};***`
+***`zend_module_entry php_knowledge_module_entry = {};`***
 
     zend_module_entry php_knowledge_module_entry = {
             STANDARD_MODULE_HEADER,//结构的首
@@ -402,11 +403,12 @@
 ----------
 
 
-***`ZEND_GET_MODULE()***`
+
+***`ZEND_GET_MODULE()`***
 
     ZEND_GET_MODULE(php_knowledge)
 
->扔给zend
+>扔给zend,完成工作。
 
 
 ----------
