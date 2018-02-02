@@ -427,12 +427,11 @@
 >扔给zend,完成工作。
 
 >另外开发过程中经常要调取PHP标准库、原生函数等，我们经常做法就是引入头`PHPAPI`直接调取，
-我们也经常使用`call_user_function*`做调取。PHP函数主要实现的位置/php-xxx/ext/standard、/php-xxx/main。zend的在/php-xxx/Zend。
+我们也经常使用`call_user_function*`做调取。PHP函数主要实现的位置/php-xxx/ext/standard、/php-xxx/main。zend的在/php-xxx/Zend。关于PHP的扩展就讲到这里了，只是讲了一点皮毛，希望能给大家一些启发，更深入的只能依靠大家开发中去探索了。
 
 ----------
 
-，
->关于PHP的扩展就讲到这里了，只是讲了一点皮毛，希望能给大家一些启发。
+
 
 >**本节参考**：
  - ext_skel:http://php.net/manual/zh/internals2.buildsys.skeleton.php 
